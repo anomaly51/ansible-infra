@@ -1,0 +1,9 @@
+---
+- name: Setup Proxmox OpenMediaVault Template
+  hosts: all
+  become: yes
+  vars:
+    zsh_user: nekoneki
+  roles:
+    - debian_base
+    - openmediavault

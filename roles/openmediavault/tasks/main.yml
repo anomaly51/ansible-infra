@@ -1,0 +1,121 @@
+---
+- name: Install prerequisite packages
+  ansible.builtin.apt:
+    name:
+      - systemd-resolved
+      - psmisc
+      - gnupg
+      - wget
+      - ca-certificates
+    state: present
+    update_cache: yes
+
+- name: Configure systemd-resolved global DNS
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/resolved.conf
+    regexp: '^DNS='
+    line: 'DNS=8.8.8.8 1.1.1.1'
+
+- name: Enable and start systemd-resolved
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    enabled: yes
+    state: restarted
+
+- name: Download OMV keyring
+  ansible.builtin.get_url:
+    url: https://packages.openmediavault.org/public/archive.key
+    dest: /tmp/omv-archive.key
+
+- name: Dearmor OMV keyring
+  ansible.builtin.shell: gpg --dearmor --yes --output /usr/share/keyrings/openmediavault-archive-keyring.gpg /tmp/omv-archive.key
+  args:
+    creates: /usr/share/keyrings/openmediavault-archive-keyring.gpg
+
+- name: Add OMV repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/openmediavault.list
+    content: |
+      deb [signed-by=/usr/share/keyrings/openmediavault-archive-keyring.gpg] https://packages.openmediavault.org/public synchrony main
+      deb [signed-by=/usr/share/keyrings/openmediavault-archive-keyring.gpg] https://downloads.sourceforge.net/project/openmediavault/packages synchrony main
+      deb [signed-by=/usr/share/keyrings/openmediavault-archive-keyring.gpg] https://packages.openmediavault.org/public synchrony-proposed main
+      deb [signed-by=/usr/share/keyrings/openmediavault-archive-keyring.gpg] https://downloads.sourceforge.net/project/openmediavault/packages synchrony-proposed main
+      deb [signed-by=/usr/share/keyrings/openmediavault-archive-keyring.gpg] https://packages.openmediavault.org/public synchrony partner
+      deb [signed-by=/usr/share/keyrings/openmediavault-archive-keyring.gpg] https://downloads.sourceforge.net/project/openmediavault/packages synchrony partner
+
+- name: Install OpenMediaVault
+  ansible.builtin.apt:
+    name: openmediavault
+    state: present
+    update_cache: yes
+    install_recommends: no
+    allow_downgrade: yes
+    dpkg_options: 'force-confdef,force-confold'
+  environment:
+    LANG: C.UTF-8
+    DEBIAN_FRONTEND: noninteractive
+    APT_LISTCHANGES_FRONTEND: none
+
+- name: Populate OMV database
+  ansible.builtin.command: omv-confdbadm populate
+
+- name: Deploy network configuration via OMV
+  ansible.builtin.command: omv-salt deploy run systemd-networkd
+  ignore_errors: true
+
+- name: Setup generic netplan for DHCP on clones
+  ansible.builtin.copy:
+    dest: /etc/netplan/99-default-dhcp.yaml
+    content: |
+      network:
+        version: 2
+        renderer: systemd
+        ethernets:
+          default:
+            match:
+              name: en*
+            dhcp4: true
+            dhcp-identifier: mac
+
+- name: Add generic systemd-networkd config for clones
+  ansible.builtin.copy:
+    dest: /etc/systemd/network/99-default-dhcp.network
+    content: |
+      [Match]
+      Name=en* eth*
+
+      [Network]
+      DHCP=yes
+
+      [DHCPv4]
+      ClientIdentifier=mac
+
+- name: Truncate machine-id to force regeneration on boot
+  ansible.builtin.copy:
+    dest: /etc/machine-id
+    content: ""
+
+- name: Allow ssh access for default user
+  ansible.builtin.user:
+    name: "{{ zsh_user | default('nekoneki') }}"
+    groups: _ssh
+    append: yes
+
+- name: Create fallback DHCP config for systemd-networkd
+  ansible.builtin.copy:
+    dest: /etc/systemd/network/20-fallback-dhcp.network
+    content: |
+      [Match]
+      Name=en*
+
+      [Network]
+      DHCP=yes
+
+      [DHCPv4]
+      ClientIdentifier=mac
+
+- name: Enable and restart systemd-networkd
+  ansible.builtin.systemd:
+    name: systemd-networkd
+    enabled: yes
+    state: restarted

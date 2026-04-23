@@ -1,0 +1,15 @@
+---
+- name: Configure OMV Single Disk NAS
+  hosts: omv
+  become: yes
+  tasks:
+    - name: Install OMV-Extras
+      ansible.builtin.shell: wget -O - https://github.com/OpenMediaVault-Plugin-Developers/packages/raw/master/install | bash
+      args:
+        creates: /etc/apt/sources.list.d/omvextras.list
+
+    - name: Install sharerootfs plugin
+      ansible.builtin.apt:
+        name: openmediavault-sharerootfs
+        state: present
+        update_cache: yes
