@@ -5,4 +5,4 @@
   vars:
     zsh_user: nekoneki
   roles:
-    - debian_base
+    - nekoneki.core.debian_base

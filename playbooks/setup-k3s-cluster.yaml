@@ -1,6 +1,6 @@
 ---
 - name: Configure K3s Master
-  hosts: master
+  hosts: "{{ target_master }}"
   become: true
   tasks:
     - name: Initialize K3s cluster
@@ -33,19 +33,19 @@
     - name: Fetch kubeconfig to local machine
       ansible.builtin.fetch:
         src: /etc/rancher/k3s/k3s.yaml
-        dest: ~/.kube/config
+        dest: "~/.kube/configs/{{ target_master }}.yaml"
         flat: true
 
     - name: Update local kubeconfig with Master IP
       delegate_to: localhost
       become: false
       ansible.builtin.replace:
-        path: ~/.kube/config
+        path: "~/.kube/configs/{{ target_master }}.yaml"
         regexp: '127\.0\.0\.1'
         replace: "{{ ansible_host }}"
 
 - name: Configure K3s Workers
-  hosts: workers
+  hosts: "{{ target_workers }}"
   become: true
   tasks:
     - name: Stop unintended K3s server service
@@ -59,6 +59,6 @@
       ansible.builtin.shell: /opt/k3s-install.sh
       environment:
         INSTALL_K3S_SKIP_DOWNLOAD: "true"
-        K3S_URL: "https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443"
-        K3S_TOKEN: "{{ hostvars[groups['master'][0]]['k3s_token'] }}"
+        K3S_URL: "https://{{ hostvars[groups[target_master][0]]['ansible_host'] }}:6443"
+        K3S_TOKEN: "{{ hostvars[groups[target_master][0]]['k3s_token'] }}"
         INSTALL_K3S_EXEC: "agent --node-name {{ inventory_hostname }}"

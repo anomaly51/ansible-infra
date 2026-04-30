@@ -1,0 +1,8 @@
+namespace: nekoneki
+name: core
+version: 1.0.0
+readme: README.md
+authors:
+  - anomaly51
+description: Core infrastructure roles and playbooks
+license: MIT
