@@ -18,9 +18,10 @@
         src: /var/lib/rancher/k3s/server/node-token
       register: node_token
 
-    - name: Set k3s_token fact
+    - name: Set master facts for workers to use
       ansible.builtin.set_fact:
         k3s_token: "{{ node_token['content'] | b64decode | trim }}"
+        is_k3s_master: true
 
     - name: Ensure local .kube directory exists
       delegate_to: localhost
@@ -33,14 +34,14 @@
     - name: Fetch kubeconfig to local machine
       ansible.builtin.fetch:
         src: /etc/rancher/k3s/k3s.yaml
-        dest: "~/.kube/configs/{{ target_master }}.yaml"
+        dest: "~/.kube/configs/{{ inventory_hostname }}.yaml"
         flat: true
 
     - name: Update local kubeconfig with Master IP
       delegate_to: localhost
       become: false
       ansible.builtin.replace:
-        path: "~/.kube/configs/{{ target_master }}.yaml"
+        path: "~/.kube/configs/{{ inventory_hostname }}.yaml"
         regexp: '127\.0\.0\.1'
         replace: "{{ ansible_host }}"
 
@@ -55,10 +56,14 @@
         enabled: false
       failed_when: false
 
+    - name: Look up Master node details
+      ansible.builtin.set_fact:
+        master_node: "{{ groups['all'] | map('extract', hostvars) | selectattr('is_k3s_master', 'defined') | first }}"
+
     - name: Join K3s cluster as Worker
       ansible.builtin.shell: /opt/k3s-install.sh
       environment:
         INSTALL_K3S_SKIP_DOWNLOAD: "true"
-        K3S_URL: "https://{{ hostvars[groups[target_master][0]]['ansible_host'] }}:6443"
-        K3S_TOKEN: "{{ hostvars[groups[target_master][0]]['k3s_token'] }}"
+        K3S_URL: "https://{{ master_node.ansible_host }}:6443"
+        K3S_TOKEN: "{{ master_node.k3s_token }}"
         INSTALL_K3S_EXEC: "agent --node-name {{ inventory_hostname }}"
