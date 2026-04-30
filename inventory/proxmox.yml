@@ -1,1 +1,12 @@
+plugin: community.proxmox.proxmox
+url: https://192.168.1.35:8006/
+user: root@pam
+password: "4355"
+validate_certs: false
+want_facts: true
+want_proxmox_nodes_ansible_host: false
+
+compose:
+  ansible_host: >-
+    ((proxmox_agent_interfaces | default([]) | selectattr('name', '!=', 'lo') | map(attribute='ip-addresses') | flatten | select('search', '\.') | list) + ['127.0.0.1']) | first | split('/') | first
 
