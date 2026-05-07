@@ -33,3 +33,9 @@
       ZSH_THEME="fino-time"
       plugins=(git sudo docker)
       source $ZSH/oh-my-zsh.sh
+
+- name: Truncate machine-id to force regeneration on boot
+  become: yes
+  ansible.builtin.copy:
+    dest: /etc/machine-id
+    content: ""
