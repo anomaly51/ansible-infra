@@ -23,27 +23,6 @@
         k3s_token: "{{ node_token['content'] | b64decode | trim }}"
         is_k3s_master: true
 
-    - name: Ensure local .kube directory exists
-      delegate_to: localhost
-      become: false
-      ansible.builtin.file:
-        path: ~/.kube
-        state: directory
-        mode: "0755"
-
-    - name: Fetch kubeconfig to local machine
-      ansible.builtin.fetch:
-        src: /etc/rancher/k3s/k3s.yaml
-        dest: "~/.kube/configs/{{ inventory_hostname }}.yaml"
-        flat: true
-
-    - name: Update local kubeconfig with Master IP
-      delegate_to: localhost
-      become: false
-      ansible.builtin.replace:
-        path: "~/.kube/configs/{{ inventory_hostname }}.yaml"
-        regexp: '127\.0\.0\.1'
-        replace: "{{ ansible_host }}"
 
 - name: Configure K3s Workers
   hosts: "{{ target_workers }}"
